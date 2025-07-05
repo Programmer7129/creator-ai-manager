@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { BackgroundAnimation } from "@/components/ui/background-animation";
+import { Button } from "@/libs/ui/button";
+import { Card } from "@/libs/ui/card";
+import { BackgroundAnimation } from "@/libs/ui/background-animation";
 import Link from "next/link";
 
 export default function SignUpPage() {
