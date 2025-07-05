@@ -5,15 +5,18 @@ import { db } from '@/libs/db'
 import { z } from 'zod'
 
 const createDealSchema = z.object({
-  title: z.string().min(2, 'Deal title must be at least 2 characters'),
   brand: z.string().min(2, 'Brand name must be at least 2 characters'),
   creatorId: z.string().min(1, 'Creator is required'),
-  amount: z.number().positive('Amount must be positive'),
-  status: z.enum(['PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED']).default('PENDING'),
-  deadline: z.string().optional(),
+  contactEmail: z.string().email().optional(),
+  contactName: z.string().optional(),
+  amount: z.number().positive('Amount must be positive').optional(),
+  currency: z.string().default('USD'),
+  status: z.enum(['PENDING', 'NEGOTIATING', 'ACTIVE', 'COMPLETED', 'CANCELLED']).default('PENDING'),
   description: z.string().optional(),
-  requirements: z.string().optional(),
-  deliverables: z.string().optional(),
+  deliverables: z.any().optional(),
+  nextActionAt: z.string().optional(),
+  contractUrl: z.string().url().optional(),
+  notes: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -49,14 +52,17 @@ export async function POST(request: NextRequest) {
     // Create deal
     const deal = await db.deal.create({
       data: {
-        title: validatedData.title,
         brand: validatedData.brand,
+        contactEmail: validatedData.contactEmail,
+        contactName: validatedData.contactName,
         amount: validatedData.amount,
+        currency: validatedData.currency,
         status: validatedData.status,
-        deadline: validatedData.deadline ? new Date(validatedData.deadline) : null,
         description: validatedData.description,
-        requirements: validatedData.requirements,
         deliverables: validatedData.deliverables,
+        nextActionAt: validatedData.nextActionAt ? new Date(validatedData.nextActionAt) : null,
+        contractUrl: validatedData.contractUrl,
+        notes: validatedData.notes,
         creator: {
           connect: { id: validatedData.creatorId }
         }

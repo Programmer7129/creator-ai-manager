@@ -26,29 +26,35 @@ import {
 } from 'lucide-react'
 
 const dealSchema = z.object({
-  title: z.string().min(2, 'Deal title must be at least 2 characters'),
   brand: z.string().min(2, 'Brand name must be at least 2 characters'),
   creatorId: z.string().min(1, 'Creator is required'),
-  amount: z.number().positive('Amount must be positive'),
-  status: z.enum(['PENDING', 'ACTIVE', 'COMPLETED', 'CANCELLED']).default('PENDING'),
-  deadline: z.string().optional(),
+  contactEmail: z.string().email().optional().or(z.literal('')),
+  contactName: z.string().optional(),
+  amount: z.number().positive('Amount must be positive').optional(),
+  currency: z.string().default('USD'),
+  status: z.enum(['PENDING', 'NEGOTIATING', 'ACTIVE', 'COMPLETED', 'CANCELLED']).default('PENDING'),
   description: z.string().optional(),
-  requirements: z.string().optional(),
   deliverables: z.string().optional(),
+  nextActionAt: z.string().optional(),
+  contractUrl: z.string().url().optional().or(z.literal('')),
+  notes: z.string().optional(),
 })
 
 type DealFormData = z.infer<typeof dealSchema>
 
 interface Deal {
   id: string
-  title: string
   brand: string
-  amount: number
-  status: 'PENDING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
-  deadline?: string
+  contactEmail?: string
+  contactName?: string
+  amount?: number
+  currency: string
+  status: 'PENDING' | 'NEGOTIATING' | 'ACTIVE' | 'COMPLETED' | 'CANCELLED'
   description?: string
-  requirements?: string
-  deliverables?: string
+  deliverables?: any
+  nextActionAt?: string
+  contractUrl?: string
+  notes?: string
   creator: {
     id: string
     name: string
@@ -125,8 +131,11 @@ export default function DealsPage() {
     try {
       const payload = {
         ...data,
-        amount: Number(data.amount),
-        deadline: data.deadline || undefined,
+        amount: data.amount ? Number(data.amount) : undefined,
+        contactEmail: data.contactEmail || undefined,
+        contractUrl: data.contractUrl || undefined,
+        nextActionAt: data.nextActionAt || undefined,
+        deliverables: data.deliverables ? [data.deliverables] : undefined,
       }
 
       const response = await fetch('/api/deals', {
@@ -200,6 +209,8 @@ export default function DealsPage() {
     switch (status) {
       case 'PENDING':
         return <AlertCircle className="h-4 w-4 text-yellow-500" />
+      case 'NEGOTIATING':
+        return <Clock className="h-4 w-4 text-orange-500" />
       case 'ACTIVE':
         return <Clock className="h-4 w-4 text-blue-500" />
       case 'COMPLETED':
@@ -215,6 +226,8 @@ export default function DealsPage() {
     switch (status) {
       case 'PENDING':
         return 'bg-yellow-100 text-yellow-800'
+      case 'NEGOTIATING':
+        return 'bg-orange-100 text-orange-800'
       case 'ACTIVE':
         return 'bg-blue-100 text-blue-800'
       case 'COMPLETED':
@@ -235,7 +248,7 @@ export default function DealsPage() {
     pending: deals.filter(d => d.status === 'PENDING').length,
     active: deals.filter(d => d.status === 'ACTIVE').length,
     completed: deals.filter(d => d.status === 'COMPLETED').length,
-    totalValue: deals.reduce((sum, deal) => sum + deal.amount, 0),
+    totalValue: deals.reduce((sum, deal) => sum + (deal.amount || 0), 0),
   }
 
   const fadeInUp = {
@@ -350,6 +363,7 @@ export default function DealsPage() {
         >
           <option value="all">All Status</option>
           <option value="PENDING">Pending</option>
+          <option value="NEGOTIATING">Negotiating</option>
           <option value="ACTIVE">Active</option>
           <option value="COMPLETED">Completed</option>
           <option value="CANCELLED">Cancelled</option>
@@ -385,7 +399,7 @@ export default function DealsPage() {
             </Button>
           )}
         </motion.div>
-      ) : (
+      ) :
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredDeals.map((deal, index) => (
             <motion.div
@@ -400,14 +414,14 @@ export default function DealsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <CardTitle className="text-lg truncate">{deal.title}</CardTitle>
+                        <CardTitle className="text-lg truncate">{deal.brand}</CardTitle>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(deal.status)}`}>
                           {deal.status}
                         </span>
                       </div>
                       <CardDescription className="flex items-center space-x-2">
                         <Building className="h-4 w-4" />
-                        <span>{deal.brand}</span>
+                        <span>{deal.contactName || 'No contact'}</span>
                       </CardDescription>
                     </div>
                     <div className="flex space-x-1">
@@ -435,16 +449,18 @@ export default function DealsPage() {
                   </div>
 
                   {/* Amount */}
-                  <div className="flex items-center space-x-2 text-sm">
-                    <DollarSign className="h-4 w-4 text-green-600" />
-                    <span className="font-semibold text-green-600">${deal.amount.toLocaleString()}</span>
-                  </div>
+                  {deal.amount && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <DollarSign className="h-4 w-4 text-green-600" />
+                      <span className="font-semibold text-green-600">${deal.amount.toLocaleString()}</span>
+                    </div>
+                  )}
 
-                  {/* Deadline */}
-                  {deal.deadline && (
+                  {/* Next Action */}
+                  {deal.nextActionAt && (
                     <div className="flex items-center space-x-2 text-sm text-gray-600">
                       <Calendar className="h-4 w-4" />
-                      <span>Due: {new Date(deal.deadline).toLocaleDateString()}</span>
+                      <span>Next: {new Date(deal.nextActionAt).toLocaleDateString()}</span>
                     </div>
                   )}
 
@@ -457,13 +473,33 @@ export default function DealsPage() {
                   <div className="pt-4 border-t">
                     <div className="flex flex-wrap gap-2">
                       {deal.status === 'PENDING' && (
+                        <>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => updateDealStatus(deal.id, 'NEGOTIATING')}
+                            className="text-orange-600 border-orange-600 hover:bg-orange-50"
+                          >
+                            Start Negotiating
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => updateDealStatus(deal.id, 'ACTIVE')}
+                            className="text-blue-600 border-blue-600 hover:bg-blue-50"
+                          >
+                            Activate
+                          </Button>
+                        </>
+                      )}
+                      {deal.status === 'NEGOTIATING' && (
                         <Button 
                           size="sm" 
                           variant="outline"
                           onClick={() => updateDealStatus(deal.id, 'ACTIVE')}
                           className="text-blue-600 border-blue-600 hover:bg-blue-50"
                         >
-                          Start Deal
+                          Activate Deal
                         </Button>
                       )}
                       {deal.status === 'ACTIVE' && (
@@ -476,7 +512,7 @@ export default function DealsPage() {
                           Mark Complete
                         </Button>
                       )}
-                      {(deal.status === 'PENDING' || deal.status === 'ACTIVE') && (
+                      {(deal.status === 'PENDING' || deal.status === 'NEGOTIATING' || deal.status === 'ACTIVE') && (
                         <Button 
                           size="sm" 
                           variant="outline"
@@ -504,22 +540,6 @@ export default function DealsPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                Deal Title *
-              </label>
-              <input
-                {...register('title')}
-                id="title"
-                type="text"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="e.g., Summer Fashion Campaign"
-              />
-              {errors.title && (
-                <p className="text-red-600 text-sm mt-1">{errors.title.message}</p>
-              )}
-            </div>
-
-            <div>
               <label htmlFor="brand" className="block text-sm font-medium text-gray-700 mb-1">
                 Brand Name *
               </label>
@@ -533,6 +553,19 @@ export default function DealsPage() {
               {errors.brand && (
                 <p className="text-red-600 text-sm mt-1">{errors.brand.message}</p>
               )}
+            </div>
+
+            <div>
+              <label htmlFor="contactName" className="block text-sm font-medium text-gray-700 mb-1">
+                Contact Name
+              </label>
+              <input
+                {...register('contactName')}
+                id="contactName"
+                type="text"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="e.g., Sarah Johnson"
+              />
             </div>
           </div>
 
@@ -559,8 +592,26 @@ export default function DealsPage() {
             </div>
 
             <div>
+              <label htmlFor="contactEmail" className="block text-sm font-medium text-gray-700 mb-1">
+                Contact Email
+              </label>
+              <input
+                {...register('contactEmail')}
+                id="contactEmail"
+                type="email"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="contact@brand.com"
+              />
+              {errors.contactEmail && (
+                <p className="text-red-600 text-sm mt-1">{errors.contactEmail.message}</p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
               <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-1">
-                Amount ($) *
+                Amount ($)
               </label>
               <input
                 {...register('amount', { valueAsNumber: true })}
@@ -575,9 +626,7 @@ export default function DealsPage() {
                 <p className="text-red-600 text-sm mt-1">{errors.amount.message}</p>
               )}
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">
                 Status
@@ -588,22 +637,41 @@ export default function DealsPage() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="PENDING">Pending</option>
+                <option value="NEGOTIATING">Negotiating</option>
                 <option value="ACTIVE">Active</option>
                 <option value="COMPLETED">Completed</option>
                 <option value="CANCELLED">Cancelled</option>
               </select>
             </div>
+          </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="deadline" className="block text-sm font-medium text-gray-700 mb-1">
-                Deadline
+              <label htmlFor="nextActionAt" className="block text-sm font-medium text-gray-700 mb-1">
+                Next Action Date
               </label>
               <input
-                {...register('deadline')}
-                id="deadline"
+                {...register('nextActionAt')}
+                id="nextActionAt"
                 type="date"
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
+            </div>
+
+            <div>
+              <label htmlFor="contractUrl" className="block text-sm font-medium text-gray-700 mb-1">
+                Contract URL
+              </label>
+              <input
+                {...register('contractUrl')}
+                id="contractUrl"
+                type="url"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="https://example.com/contract"
+              />
+              {errors.contractUrl && (
+                <p className="text-red-600 text-sm mt-1">{errors.contractUrl.message}</p>
+              )}
             </div>
           </div>
 
@@ -621,19 +689,6 @@ export default function DealsPage() {
           </div>
 
           <div>
-            <label htmlFor="requirements" className="block text-sm font-medium text-gray-700 mb-1">
-              Requirements
-            </label>
-            <textarea
-              {...register('requirements')}
-              id="requirements"
-              rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="What the brand requires..."
-            />
-          </div>
-
-          <div>
             <label htmlFor="deliverables" className="block text-sm font-medium text-gray-700 mb-1">
               Deliverables
             </label>
@@ -643,6 +698,19 @@ export default function DealsPage() {
               rows={3}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="What will be delivered..."
+            />
+          </div>
+
+          <div>
+            <label htmlFor="notes" className="block text-sm font-medium text-gray-700 mb-1">
+              Notes
+            </label>
+            <textarea
+              {...register('notes')}
+              id="notes"
+              rows={3}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              placeholder="Additional notes..."
             />
           </div>
 
