@@ -1,0 +1,186 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  name       String?
+  image      String?
+  password   String?
+  emailVerified DateTime?
+  agency     Agency?  @relation(fields: [agencyId], references: [id])
+  agencyId   String?
+  role       Role     @default(USER)
+  accounts   Account[]
+  sessions   Session[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Agency {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  users       User[]
+  creators    Creator[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Creator {
+  id                String   @id @default(uuid())
+  agency            Agency?  @relation(fields: [agencyId], references: [id])
+  agencyId          String?
+  name              String
+  email             String?
+  socialHandles     Json     @default("{}")  // { instagram: {token, handle}, youtube: {token, handle}, etc. }
+  niche             String
+  metrics           Json?    // cached analytics
+  audienceData      Json?    // demographics, location, etc.
+  baseRate          Float?   // base rate for sponsorships
+  deals             Deal[]
+  scheduledPosts    ScheduledPost[]
+  aiSuggestions     AISuggestion[]
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Deal {
+  id               String     @id @default(uuid())
+  creator          Creator    @relation(fields: [creatorId], references: [id])
+  creatorId        String
+  brand            String
+  contactEmail     String?
+  contactName      String?
+  status           DealStatus @default(PENDING)
+  amount           Float?
+  currency         String     @default("USD")
+  description      String?
+  deliverables     Json?      // list of deliverables
+  nextActionAt     DateTime?
+  contractUrl      String?
+  notes            String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+}
+
+model ScheduledPost {
+  id            String      @id @default(uuid())
+  creator       Creator     @relation(fields: [creatorId], references: [id])
+  creatorId     String
+  platform      String      // instagram, youtube, tiktok, etc.
+  content       String
+  mediaUrls     Json?       // array of image/video URLs
+  scheduledFor  DateTime
+  status        PostStatus  @default(SCHEDULED)
+  publishedAt   DateTime?
+  postId        String?     // ID from the social platform after publishing
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model AISuggestion {
+  id           String           @id @default(uuid())
+  creator      Creator          @relation(fields: [creatorId], references: [id])
+  creatorId    String
+  type         SuggestionType
+  title        String
+  content      String
+  metadata     Json?            // additional data like optimal posting time, etc.
+  status       SuggestionStatus @default(PENDING)
+  feedback     Json?            // user feedback (thumbs up/down, comments)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  userId      String
+  agencyId    String?
+  action      String
+  description String
+  metadata    Json?    // JSON metadata
+  createdAt   DateTime @default(now())
+}
+
+enum Role {
+  USER
+  MANAGER
+  ADMIN
+}
+
+enum DealStatus {
+  PENDING
+  NEGOTIATING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum PostStatus {
+  SCHEDULED
+  PUBLISHED
+  FAILED
+  CANCELLED
+}
+
+enum SuggestionType {
+  CONTENT_IDEA
+  POSTING_TIME
+  AUDIENCE_ENGAGEMENT
+  BRAND_MATCH
+  PERFORMANCE_TIP
+}
+
+enum SuggestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  IMPLEMENTED
+}
