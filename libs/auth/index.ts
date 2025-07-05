@@ -44,7 +44,7 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           image: user.image,
           role: user.role,
-          agencyId: user.agencyId
+          agencyId: user.agencyId || undefined
         }
       }
     })
@@ -84,7 +84,7 @@ export const authOptions: NextAuthOptions = {
         if (dbUser) {
           token.id = dbUser.id
           token.role = dbUser.role
-          token.agencyId = dbUser.agencyId
+          token.agencyId = dbUser.agencyId || undefined
           token.agencyName = dbUser.agency?.name
         }
       }
