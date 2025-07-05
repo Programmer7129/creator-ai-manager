@@ -399,7 +399,7 @@ export default function DealsPage() {
             </Button>
           )}
         </motion.div>
-      ) :
+      ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredDeals.map((deal, index) => (
             <motion.div
